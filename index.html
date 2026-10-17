@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Aurora — real-time fluid simulation</title>
+  <meta name="description" content="Interactive Navier–Stokes fluid simulation running entirely on your GPU with raw WebGL2. No libraries.">
+  <meta name="theme-color" content="#030409">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%2333ffcc'/%3E%3Cstop offset='1' stop-color='%23a855f7'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M4 22c6-14 10-14 12-6s6 8 12-6' fill='none' stroke='url(%23g)' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="panel-open">
+  <canvas id="canvas" aria-label="Fluid simulation. Move the pointer or drag to stir it."></canvas>
+
+  <header class="brand">
+    <h1>Aurora<span>.</span></h1>
+    <p>Real-time fluid dynamics on your GPU.<br><em>Move, drag, play.</em></p>
+    <div class="brand-actions">
+      <button class="chip" id="about-open">How it works</button>
+      <a class="chip" href="https://github.com/chop-prog/aurora" target="_blank" rel="noopener">Source</a>
+    </div>
+  </header>
+
+  <button id="panel-toggle" class="panel-toggle" aria-expanded="true" aria-controls="panel" aria-label="Toggle controls">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>
+  </button>
+
+  <aside id="panel" class="panel" aria-label="Simulation controls">
+    <form id="controls">
+      <fieldset class="presets">
+        <legend>Presets</legend>
+        <button type="button" data-preset="calm">Calm</button>
+        <button type="button" data-preset="storm">Storm</button>
+        <button type="button" data-preset="ink">Ink</button>
+        <button type="button" data-preset="inferno">Inferno</button>
+      </fieldset>
+
+      <div class="field">
+        <label for="f-curl">Swirl</label><output for="f-curl"></output>
+        <input id="f-curl" name="curl" type="range" min="0" max="60" step="1">
+      </div>
+      <div class="field">
+        <label for="f-vel">Viscosity</label><output for="f-vel"></output>
+        <input id="f-vel" name="velocityDissipation" type="range" min="0" max="4" step="0.05">
+      </div>
+      <div class="field">
+        <label for="f-dens">Fade</label><output for="f-dens"></output>
+        <input id="f-dens" name="densityDissipation" type="range" min="0" max="4" step="0.05">
+      </div>
+      <div class="field">
+        <label for="f-rad">Brush</label><output for="f-rad"></output>
+        <input id="f-rad" name="splatRadius" type="range" min="0.02" max="1" step="0.01">
+      </div>
+      <div class="field">
+        <label for="f-pres">Pressure iterations</label><output for="f-pres"></output>
+        <input id="f-pres" name="pressureIterations" type="range" min="1" max="80" step="1">
+      </div>
+
+      <div class="row">
+        <label class="select">Palette
+          <select name="palette">
+            <option value="aurora">Aurora</option>
+            <option value="neon">Neon</option>
+            <option value="fire">Fire</option>
+            <option value="ocean">Ocean</option>
+            <option value="mono">Mono</option>
+          </select>
+        </label>
+        <label class="select">View
+          <select name="display">
+            <option value="dye">Dye</option>
+            <option value="velocity">Velocity</option>
+            <option value="pressure">Pressure</option>
+            <option value="curl">Vorticity</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="row">
+        <label class="switch"><input type="checkbox" name="shading"><span></span>Shading</label>
+        <label class="switch"><input type="checkbox" name="autopilot"><span></span>Autopilot</label>
+      </div>
+
+      <div class="buttons">
+        <button type="button" data-action="splash">Splash</button>
+        <button type="button" data-action="clear">Clear</button>
+        <button type="button" data-action="pause" aria-pressed="false">Pause</button>
+        <button type="button" data-action="mic" aria-pressed="false">Mic</button>
+        <button type="button" data-action="snapshot">Snapshot</button>
+        <button type="button" data-action="share">Share</button>
+      </div>
+
+      <dl class="stats">
+        <div><dt>FPS</dt><dd id="stat-fps">–</dd></div>
+        <div><dt>Grid</dt><dd id="stat-sim">–</dd></div>
+        <div><dt>Dye</dt><dd id="stat-dye">–</dd></div>
+      </dl>
+      <p class="keys"><kbd>Space</kbd> pause · <kbd>R</kbd> splash · <kbd>C</kbd> clear · <kbd>1–4</kbd> views · <kbd>H</kbd> hide UI</p>
+    </form>
+  </aside>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="about" class="about" aria-labelledby="about-title">
+    <button id="about-close" class="close" aria-label="Close">×</button>
+    <h2 id="about-title">How it works</h2>
+    <p>Aurora solves the incompressible <strong>Navier–Stokes equations</strong> every frame, entirely on the GPU, using Jos Stam's <em>Stable Fluids</em> method. Each step is a full-screen fragment-shader pass that writes into half-float textures:</p>
+    <ol class="pipeline">
+      <li><b>Curl</b><span>measure local rotation of the velocity field</span></li>
+      <li><b>Vorticity confinement</b><span>push energy back into small swirls lost to numerical diffusion</span></li>
+      <li><b>Divergence</b><span>find where fluid is being created or destroyed</span></li>
+      <li><b>Pressure ×N</b><span>Jacobi iterations solve the Poisson equation ∇²p = ∇·u</span></li>
+      <li><b>Projection</b><span>subtract ∇p, so the flow becomes divergence-free</span></li>
+      <li><b>Advection</b><span>semi-Lagrangian back-tracing moves velocity and dye</span></li>
+      <li><b>Display</b><span>tone mapping, normal-based shading, dithering</span></li>
+    </ol>
+    <p>Press <kbd>2</kbd>, <kbd>3</kbd> or <kbd>4</kbd> to see the raw velocity, pressure and vorticity fields the solver works with. Settings live in the URL, so <em>Share</em> gives a link that reproduces your setup. If the GPU struggles, dye resolution is lowered automatically.</p>
+    <p class="muted">Raw WebGL2 · under 1,000 lines of JavaScript and GLSL · no libraries · no build step.</p>
+  </dialog>
+
+  <div class="fallback">
+    <h1>Aurora<span>.</span></h1>
+    <p>This demo needs WebGL2 with floating-point render targets.</p>
+    <p class="muted" id="fallback-reason"></p>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

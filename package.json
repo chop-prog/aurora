@@ -1,0 +1,16 @@
+{
+  "name": "aurora",
+  "version": "1.0.0",
+  "description": "Real-time GPU fluid simulation (Stable Fluids) in raw WebGL2 — no libraries, no build step.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "node scripts/serve.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": ["webgl2", "glsl", "fluid-simulation", "navier-stokes", "shaders", "creative-coding"]
+}
